@@ -5,13 +5,14 @@ import org.jetbrains.annotations.NotNull;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Represents a project with articles and events.
  */
 public class Project {
     private String ownerOrg;
-    final List<Event> events;
     final List<Article> articles;
     final String title;
     final HashMap<Object, Set<Topic>> topics;
@@ -21,16 +22,14 @@ public class Project {
         this.ownerOrg = ownerOrg;
         this.articles = new ArrayList<>(articles);
         Collections.sort(this.articles);
-        this.events = new ArrayList<>(events);
-        Collections.sort(this.events);
         this.topics = new HashMap<>(topics);
     }
 
 
     @Override
     public String toString() {
-        return "Project %s by %s with %d articles and %d events".formatted(
-                this.title, this.ownerOrg, this.articles.size(), this.events.size());
+        return "Project %s by %s with %d articles".formatted(
+                this.title, this.ownerOrg, this.articles.size());
     }
 
     /**
@@ -43,44 +42,21 @@ public class Project {
     }
 
 
-    public List<Event> getUpcomingEvents(int max) {
-        var now = LocalDateTime.now();
-        return this.events.stream().
-                filter(e -> e.getStartDate().isAfter(now)).
-                sorted(Comparator.comparing(Event::getStartDate)).limit(max).toList();
-    }
-
-    public List<Event> getEvents() {
-        return this.events;
-    }
-
     public List<Article> getArticles() {
         return this.articles;
     }
 
-
-    public @NotNull Set<Topic> getTopics(Object projectPart) {
-        Set<Topic> result = new HashSet<>();
-        result.addAll(this.topics.getOrDefault(projectPart, new HashSet<>()));
-        if (projectPart instanceof Article a) {
-            for (Object o : a.getInnerArticles())
-                result.addAll(getTopics(o));
-            for (Object o : a.getContent())
-                result.addAll(getTopics(o));
-        }
-        if (projectPart instanceof SubArticle a) {
-            for (Object o : a.getInnerArticles())
-                result.addAll(getTopics(o));
-            for (Object o : a.getContent())
-                result.addAll(getTopics(o));
-        }
-        if (projectPart instanceof SubSubArticle a) {
-            for (Object o : a.getContent())
-                result.addAll(getTopics(o));
-        }
-
-        return result;
+    public List<Article> getAllArticles() {
+        Stream<Article> articlesStream = this.articles.stream();
+        return
+                articlesStream.flatMap(Entry::getAllArticles)
+                        .sorted().collect(Collectors.toList());
     }
+
+    public Set<Topic> getTopics() {
+        return getAllArticles().stream().flatMap((s) -> s.getTopics().stream()).collect(Collectors.toSet());
+    }
+
 
     public @NotNull Set<Topic> getAllTopics() {
         Set<Topic> result = new HashSet<>();
@@ -95,9 +71,5 @@ public class Project {
 
     public String getOwnerOrg() {
         return this.ownerOrg;
-    }
-
-    public boolean isArticlePinned(Article article) {
-        return article.getMetadata().has("pinned") && !article.getMetadata().get("pinned").equals("false");
     }
 }
